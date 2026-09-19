@@ -1,0 +1,6 @@
+ARVO ID: 42476049
+Image: n132/arvo:42476049-vul
+Fuzz target: ares_parse_reply_fuzzer
+SANITIZER: coverage
+coverage target exit: 0
+llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false
