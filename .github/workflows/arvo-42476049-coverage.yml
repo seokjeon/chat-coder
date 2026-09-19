@@ -1,17 +1,13 @@
-name: ARVO 42476049 coverage analysis
+name: ARVO 42476049 debug rebuild
 
 on:
   push:
     branches: [main]
     paths:
       - .github/workflows/arvo-42476049-coverage.yml
-  issues:
-    types:
-      - edited
 
 jobs:
   cache-image:
-    if: ${{ github.event_name == 'push' || github.event.issue.number == 2 }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,7 +34,6 @@ jobs:
           docker save "$IMAGE" | zstd -T0 -3 -o "$CACHE_FILE"
           bytes="$(stat -c %s "$CACHE_FILE")"
           echo "cached_bytes=$bytes"
-          awk -v b="$bytes" 'BEGIN { printf("cached_GiB=%.3f\n", b/1073741824) }'
           if [ "$bytes" -ge "$MAX_BYTES" ]; then
             rm -f "$CACHE_FILE"
             echo "Compressed docker-save is >= 8 GiB; refusing to cache." >&2
@@ -56,10 +51,9 @@ jobs:
             echo "Cached file is >= 8 GiB." >&2
             exit 1
           fi
-          awk -v b="$bytes" 'BEGIN { printf("cache_size_GiB=%.3f\n", b/1073741824) }'
           sha256sum "$CACHE_FILE"
 
-  coverage:
+  asan:
     needs: cache-image
     runs-on: ubuntu-latest
     permissions:
@@ -69,6 +63,7 @@ jobs:
       CACHE_FILE: /home/runner/.cache/arvo-images/42476049-vul.tar.zst
       CACHE_KEY: arvo-docker-42476049-vul-v1
       FUZZ_TARGET: ares_parse_reply_fuzzer
+      DEBUG_FLAGS: -g3 -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-inline
     steps:
       - name: Restore cached Docker image
         uses: actions/cache/restore@v4
@@ -82,7 +77,118 @@ jobs:
         run: |
           set -euo pipefail
           zstd -dc "$CACHE_FILE" | docker load
-          docker image inspect "$IMAGE" --format 'loaded={{.RepoTags}} size={{.Size}}'
+
+      - name: Rebuild with AddressSanitizer and capture log
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p asan-result
+          cat > asan-run.sh <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          export CFLAGS="${CFLAGS:-} $DEBUG_FLAGS"
+          export CXXFLAGS="${CXXFLAGS:-} $DEBUG_FLAGS"
+
+          echo "=== build environment ==="
+          echo "SANITIZER=$SANITIZER"
+          echo "CFLAGS=$CFLAGS"
+          echo "CXXFLAGS=$CXXFLAGS"
+
+          SANITIZER=address compile
+
+          echo "=== target debug sections ==="
+          file "/out/$FUZZ_TARGET"
+          readelf -S "/out/$FUZZ_TARGET" | grep -E '\.debug_(info|line)' || true
+
+          set +e
+          ASAN_OPTIONS="symbolize=1:abort_on_error=1"             "/out/$FUZZ_TARGET" /tmp/poc > /tmp/asan-raw.txt 2>&1
+          asan_rc=$?
+          set -e
+          echo "asan_target_exit=$asan_rc"
+
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          raw = pathlib.Path("/tmp/asan-raw.txt").read_text(encoding="utf-8", errors="replace")
+          ansi = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+          clean = ansi.sub("", raw).replace("\r\n", "\n").replace("\r", "\n")
+          pathlib.Path("/tmp/asan-crash-output.txt").write_text(clean, encoding="utf-8")
+
+          selected = []
+          for line in clean.splitlines():
+              stripped = line.strip()
+              if (
+                  "ERROR: AddressSanitizer:" in line
+                  or re.search(r"\b(?:READ|WRITE) of size \d+\b", line)
+                  or stripped.startswith("SCARINESS:")
+                  or re.match(r"^#\d+\s+", stripped)
+                  or "Memory access at offset" in line
+                  or "SUMMARY: AddressSanitizer:" in line
+              ):
+                  selected.append(stripped)
+
+          if not selected:
+              raise SystemExit("No ASan stack lines found")
+          pathlib.Path("/tmp/asan-stack.txt").write_text("\n".join(selected) + "\n", encoding="utf-8")
+          PY
+
+          test -s /tmp/asan-crash-output.txt
+          test -s /tmp/asan-stack.txt
+          {
+            echo "ARVO ID: 42476049"
+            echo "Image: n132/arvo:42476049-vul"
+            echo "Fuzz target: $FUZZ_TARGET"
+            echo "SANITIZER: address"
+            echo "debug flags: $DEBUG_FLAGS"
+            echo "CFLAGS: $CFLAGS"
+            echo "CXXFLAGS: $CXXFLAGS"
+            echo "ASan target exit: $asan_rc"
+          } > /tmp/asan-metadata.txt
+
+          echo "=== ASan stack ==="
+          cat /tmp/asan-stack.txt
+          SCRIPT
+          chmod +x asan-run.sh
+
+          docker run --name arvo-asan             -e SANITIZER=address             -e FUZZ_TARGET="$FUZZ_TARGET"             -e DEBUG_FLAGS="$DEBUG_FLAGS"             -v "$PWD/asan-run.sh:/tmp/asan-run.sh:ro"             "$IMAGE"             bash /tmp/asan-run.sh
+
+          docker cp arvo-asan:/tmp/asan-crash-output.txt asan-result/asan-crash-output.txt
+          docker cp arvo-asan:/tmp/asan-stack.txt asan-result/asan-stack.txt
+          docker cp arvo-asan:/tmp/asan-metadata.txt asan-result/asan-metadata.txt
+
+      - name: Upload ASan result
+        uses: actions/upload-artifact@v4
+        with:
+          name: arvo-42476049-asan-debug
+          path: asan-result/
+          retention-days: 7
+          if-no-files-found: error
+
+  coverage:
+    needs: cache-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      IMAGE: n132/arvo:42476049-vul
+      CACHE_FILE: /home/runner/.cache/arvo-images/42476049-vul.tar.zst
+      CACHE_KEY: arvo-docker-42476049-vul-v1
+      FUZZ_TARGET: ares_parse_reply_fuzzer
+      DEBUG_FLAGS: -g3 -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-inline
+    steps:
+      - name: Restore cached Docker image
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/.cache/arvo-images/42476049-vul.tar.zst
+          key: ${{ env.CACHE_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Load Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          zstd -dc "$CACHE_FILE" | docker load
 
       - name: Rebuild with coverage and generate llvm-cov show
         shell: bash
@@ -92,36 +198,28 @@ jobs:
           cat > coverage-run.sh <<'SCRIPT'
           #!/bin/bash
           set -euo pipefail
-          echo "=== toolchain ==="
-          command -v compile
-          command -v llvm-cov
-          command -v llvm-profdata
-          llvm-cov --version | head -n 1
-          echo "SANITIZER=$SANITIZER"
-          echo "FUZZING_ENGINE=${FUZZING_ENGINE:-}"
-          echo "OUT=${OUT:-/out}"
-          echo "SRC=${SRC:-/src}"
+          export CFLAGS="${CFLAGS:-} $DEBUG_FLAGS"
+          export CXXFLAGS="${CXXFLAGS:-} $DEBUG_FLAGS"
 
-          echo "=== rebuild ==="
+          echo "=== build environment ==="
+          echo "SANITIZER=$SANITIZER"
+          echo "CFLAGS=$CFLAGS"
+          echo "CXXFLAGS=$CXXFLAGS"
+
           SANITIZER=coverage compile
 
-          # Discard profiles produced by configure/build-time test executables.
-          # The committed coverage must reflect only the requested PoC run.
           find /tmp /out -type f -name "*.profraw" -delete
 
-          echo "=== target ==="
-          ls -l "/out/$FUZZ_TARGET"
+          echo "=== target debug sections ==="
           file "/out/$FUZZ_TARGET"
+          readelf -S "/out/$FUZZ_TARGET" | grep -E '\.debug_(info|line)' || true
 
-          echo "=== reproduce under coverage ==="
           set +e
           LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw "/out/$FUZZ_TARGET" /tmp/poc
           reproduce_rc=$?
           set -e
           echo "coverage_target_exit=$reproduce_rc"
 
-          echo "=== raw profiles ==="
-          find /tmp /out -type f -name "*.profraw" -print
           mapfile -t profiles < <(find /tmp /out -type f -name "*.profraw" -print)
           echo "profile_count=${#profiles[@]}"
           if [ "${#profiles[@]}" -eq 0 ]; then
@@ -131,32 +229,21 @@ jobs:
 
           llvm-profdata merge -sparse "${profiles[@]}" -o /tmp/arvo.profdata
 
-          echo "=== llvm-cov show ==="
-          llvm-cov show "/out/$FUZZ_TARGET" \
-            -instr-profile=/tmp/arvo.profdata \
-            -show-line-counts=false \
-            -show-line-counts-or-regions=false \
-            -show-regions=false \
-            -show-instantiations=false \
-            -show-expansions=false \
-            -use-color=false \
-            > /tmp/llvm-cov-show-raw.txt
+          llvm-cov show "/out/$FUZZ_TARGET"             -instr-profile=/tmp/arvo.profdata             -show-line-counts=false             -show-line-counts-or-regions=false             -show-regions=false             -show-instantiations=false             -show-expansions=false             -use-color=false             > /tmp/llvm-cov-show-raw.txt
 
-          # Older llvm-cov builds can still render the execution-count column
-          # even when -show-line-counts=false is supplied. Keep the option above,
-          # then remove only that rendered count column from the committed text.
-          sed -E 's/^([[:space:]]*[0-9]+\|)[^|]*\|/\1/' \
-            /tmp/llvm-cov-show-raw.txt > /tmp/llvm-cov-show.txt
+          sed -E 's/^([[:space:]]*[0-9]+\|)[^|]*\|/\1/'             /tmp/llvm-cov-show-raw.txt > /tmp/llvm-cov-show.txt
 
           test -s /tmp/llvm-cov-show.txt
           wc -l /tmp/llvm-cov-show.txt
-          sed -n '1,80p' /tmp/llvm-cov-show.txt
 
           {
             echo "ARVO ID: 42476049"
             echo "Image: n132/arvo:42476049-vul"
             echo "Fuzz target: $FUZZ_TARGET"
             echo "SANITIZER: coverage"
+            echo "debug flags: $DEBUG_FLAGS"
+            echo "CFLAGS: $CFLAGS"
+            echo "CXXFLAGS: $CXXFLAGS"
             echo "coverage target exit: $reproduce_rc"
             echo "profraw files merged: ${#profiles[@]}"
             echo "llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false"
@@ -165,27 +252,21 @@ jobs:
           SCRIPT
           chmod +x coverage-run.sh
 
-          docker run --name arvo-coverage \
-            -e SANITIZER=coverage \
-            -e FUZZ_TARGET="$FUZZ_TARGET" \
-            -v "$PWD/coverage-run.sh:/tmp/coverage-run.sh:ro" \
-            "$IMAGE" \
-            bash /tmp/coverage-run.sh
+          docker run --name arvo-coverage             -e SANITIZER=coverage             -e FUZZ_TARGET="$FUZZ_TARGET"             -e DEBUG_FLAGS="$DEBUG_FLAGS"             -v "$PWD/coverage-run.sh:/tmp/coverage-run.sh:ro"             "$IMAGE"             bash /tmp/coverage-run.sh
 
           docker cp arvo-coverage:/tmp/llvm-cov-show.txt coverage-result/llvm-cov-show.txt
           docker cp arvo-coverage:/tmp/coverage-metadata.txt coverage-result/coverage-metadata.txt
-          test -s coverage-result/llvm-cov-show.txt
 
       - name: Upload coverage result
         uses: actions/upload-artifact@v4
         with:
-          name: arvo-42476049-llvm-cov
+          name: arvo-42476049-llvm-cov-debug
           path: coverage-result/
           retention-days: 7
           if-no-files-found: error
 
   publish:
-    needs: coverage
+    needs: [asan, coverage]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -196,30 +277,40 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Download ASan result
+        uses: actions/download-artifact@v4
+        with:
+          name: arvo-42476049-asan-debug
+          path: /tmp/arvo-asan-result
+
       - name: Download coverage result
         uses: actions/download-artifact@v4
         with:
-          name: arvo-42476049-llvm-cov
+          name: arvo-42476049-llvm-cov-debug
           path: /tmp/arvo-coverage-result
 
-      - name: Commit coverage text
+      - name: Commit refreshed debug outputs
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
           mkdir -p analysis/arvo-42476049
+
+          cp /tmp/arvo-asan-result/asan-crash-output.txt analysis/arvo-42476049/asan-crash-output.txt
+          cp /tmp/arvo-asan-result/asan-stack.txt analysis/arvo-42476049/asan-stack.txt
+          cp /tmp/arvo-asan-result/asan-metadata.txt analysis/arvo-42476049/asan-metadata.txt
           cp /tmp/arvo-coverage-result/llvm-cov-show.txt analysis/arvo-42476049/llvm-cov-show.txt
           cp /tmp/arvo-coverage-result/coverage-metadata.txt analysis/arvo-42476049/coverage-metadata.txt
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add analysis/arvo-42476049/llvm-cov-show.txt analysis/arvo-42476049/coverage-metadata.txt
+          git add analysis/arvo-42476049/
 
           if git diff --cached --quiet; then
-            echo "Coverage output unchanged; nothing to commit."
+            echo "Debug outputs unchanged; nothing to commit."
             exit 0
           fi
 
-          git commit -m "Add ARVO 42476049 llvm-cov output"
+          git commit -m "Refresh ARVO 42476049 debug outputs"
           git push origin HEAD:main
