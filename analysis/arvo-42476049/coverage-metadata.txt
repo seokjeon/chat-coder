@@ -4,3 +4,4 @@ Fuzz target: ares_parse_reply_fuzzer
 SANITIZER: coverage
 coverage target exit: 0
 llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false
+rendered hit-count column removed from committed text: yes

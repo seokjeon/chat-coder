@@ -135,7 +135,13 @@ jobs:
             -show-instantiations=false \
             -show-expansions=false \
             -use-color=false \
-            > /tmp/llvm-cov-show.txt
+            > /tmp/llvm-cov-show-raw.txt
+
+          # Older llvm-cov builds can still render the execution-count column
+          # even when -show-line-counts=false is supplied. Keep the option above,
+          # then remove only that rendered count column from the committed text.
+          sed -E 's/^([[:space:]]*[0-9]+\|)[^|]*\|/\1/' \
+            /tmp/llvm-cov-show-raw.txt > /tmp/llvm-cov-show.txt
 
           test -s /tmp/llvm-cov-show.txt
           wc -l /tmp/llvm-cov-show.txt
@@ -148,6 +154,7 @@ jobs:
             echo "SANITIZER: coverage"
             echo "coverage target exit: $reproduce_rc"
             echo "llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false"
+            echo "rendered hit-count column removed from committed text: yes"
           } > /tmp/coverage-metadata.txt
           SCRIPT
           chmod +x coverage-run.sh
