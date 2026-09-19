@@ -1,0 +1,108 @@
+name: Import split ARVO database 99baef37
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/import-arvo-99baef37.yml
+
+permissions:
+  contents: write
+
+jobs:
+  split-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download, split, and verify ARVO v3.0.0
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          url="https://github.com/n132/ARVO-Meta/releases/download/v3.0.0/arvo.db"
+          expected_sha256="331184ca807c2f136f98dac9f1df94c893f4ee2fdf9329dca517ff88e72f97ce"
+          max_bytes=95000000
+
+          curl -L --fail --retry 3 --retry-delay 2 "$url" -o arvo.db
+          echo "$expected_sha256  arvo.db" | sha256sum -c -
+
+          echo "SQLite tables:"
+          sqlite3 arvo.db '.tables'
+          echo "arvo schema:"
+          sqlite3 arvo.db '.schema arvo'
+
+          original_integrity="$(sqlite3 arvo.db 'PRAGMA integrity_check;')"
+          test "$original_integrity" = "ok"
+
+          original_count="$(sqlite3 arvo.db 'SELECT COUNT(*) FROM arvo;')"
+          test "$original_count" -gt 1
+          echo "Original arvo rows: $original_count"
+
+          selected_parts=""
+
+          for n in 2 3 4 5 6 8; do
+            echo "Trying $n parts..."
+            rm -f arvo-[0-9]*.db
+
+            total_split_rows=0
+            all_under_limit=1
+
+            for ((i=1; i<=n; i++)); do
+              start_offset=$(( (i - 1) * original_count / n ))
+              end_offset=$(( i * original_count / n - 1 ))
+
+              start_rowid="$(sqlite3 arvo.db "SELECT rowid FROM arvo ORDER BY rowid LIMIT 1 OFFSET $start_offset;")"
+              end_rowid="$(sqlite3 arvo.db "SELECT rowid FROM arvo ORDER BY rowid LIMIT 1 OFFSET $end_offset;")"
+
+              test -n "$start_rowid"
+              test -n "$end_rowid"
+
+              part="arvo-$i.db"
+              cp arvo.db "$part"
+              sqlite3 "$part" "DELETE FROM arvo WHERE rowid < $start_rowid OR rowid > $end_rowid; VACUUM;"
+
+              integrity="$(sqlite3 "$part" 'PRAGMA integrity_check;')"
+              test "$integrity" = "ok"
+
+              rows="$(sqlite3 "$part" 'SELECT COUNT(*) FROM arvo;')"
+              total_split_rows=$(( total_split_rows + rows ))
+
+              bytes="$(stat -c %s "$part")"
+              echo "$part: rows=$rows bytes=$bytes rowid_range=$start_rowid..$end_rowid"
+
+              if [ "$bytes" -ge "$max_bytes" ]; then
+                all_under_limit=0
+              fi
+            done
+
+            test "$total_split_rows" -eq "$original_count"
+
+            if [ "$all_under_limit" -eq 1 ]; then
+              selected_parts="$n"
+              break
+            fi
+          done
+
+          test -n "$selected_parts"
+          echo "Selected $selected_parts parts."
+
+          rm -f arvo.db
+
+          echo "Final files:"
+          ls -lh arvo-[0-9]*.db
+          sha256sum arvo-[0-9]*.db
+
+      - name: Commit split databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add arvo-[0-9]*.db
+          git commit -m "Add split ARVO v3.0.0 database"
+          git push origin HEAD:main
