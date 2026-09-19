@@ -84,6 +84,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add analysis/arvo-42476049/asan-crash-output.txt analysis/arvo-42476049/asan-stack.txt
-          git diff --cached --check
+          git diff --cached --stat
           git commit -m "Add ARVO 42476049 ASan crash log"
           git push origin HEAD:main
