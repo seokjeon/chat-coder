@@ -1,0 +1,13 @@
+==7==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffff7f4c86c at pc 0x00000056aa29 bp 0x7fffffffdc30 sp 0x7fffffffdc28
+WRITE of size 4 at 0x7ffff7f4c86c thread T0
+SCARINESS: 51 (4-byte-write-stack-buffer-overflow)
+#0 0x56aa28 in ares_parse_a_reply /src/c-ares/ares_parse_a_reply.c
+#1 0x56899e in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:12:3
+#2 0x472121 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerLoop.cpp:553:15
+#3 0x45d131 in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:292:6
+#4 0x462afa in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:773:9
+#5 0x48b7c2 in main /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerMain.cpp:19:10
+#6 0x7ffff6ee582f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2082f)
+#7 0x41df28 in _start (/out/ares_parse_reply_fuzzer+0x41df28)
+#0 0x56882f in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:7
+SUMMARY: AddressSanitizer: stack-buffer-overflow /src/c-ares/ares_parse_a_reply.c in ares_parse_a_reply
