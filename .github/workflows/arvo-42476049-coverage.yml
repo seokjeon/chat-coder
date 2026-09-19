@@ -105,6 +105,10 @@ jobs:
           echo "=== rebuild ==="
           SANITIZER=coverage compile
 
+          # Discard profiles produced by configure/build-time test executables.
+          # The committed coverage must reflect only the requested PoC run.
+          find /tmp /out -type f -name "*.profraw" -delete
+
           echo "=== target ==="
           ls -l "/out/$FUZZ_TARGET"
           file "/out/$FUZZ_TARGET"
@@ -119,6 +123,7 @@ jobs:
           echo "=== raw profiles ==="
           find /tmp /out -type f -name "*.profraw" -print
           mapfile -t profiles < <(find /tmp /out -type f -name "*.profraw" -print)
+          echo "profile_count=${#profiles[@]}"
           if [ "${#profiles[@]}" -eq 0 ]; then
             echo "No .profraw files were produced." >&2
             exit 20
@@ -153,6 +158,7 @@ jobs:
             echo "Fuzz target: $FUZZ_TARGET"
             echo "SANITIZER: coverage"
             echo "coverage target exit: $reproduce_rc"
+            echo "profraw files merged: ${#profiles[@]}"
             echo "llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false"
             echo "rendered hit-count column removed from committed text: yes"
           } > /tmp/coverage-metadata.txt
@@ -162,7 +168,6 @@ jobs:
           docker run --name arvo-coverage \
             -e SANITIZER=coverage \
             -e FUZZ_TARGET="$FUZZ_TARGET" \
-            -e LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw \
             -v "$PWD/coverage-run.sh:/tmp/coverage-run.sh:ro" \
             "$IMAGE" \
             bash /tmp/coverage-run.sh
