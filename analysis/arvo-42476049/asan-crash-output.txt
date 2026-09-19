@@ -1,29 +1,26 @@
-INFO: Seed: 819170306
-INFO: Loaded 1 modules   (1592 inline 8-bit counters): 1592 [0x7f3f98, 0x7f45d0), 
-INFO: Loaded 1 PC tables (1592 PCs): 1592 [0x7f45d0,0x7fa950), 
+INFO: Seed: 3028564923
+INFO: Loaded 1 modules   (1630 inline 8-bit counters): 1630 [0x818718, 0x818d76), 
+INFO: Loaded 1 PC tables (1630 PCs): 1630 [0x818d78,0x81f358), 
 /out/ares_parse_reply_fuzzer: Running 1 inputs 1 time(s) each.
 Running: /tmp/poc
 =================================================================
-[1m[31m==7==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffff7f4c86c at pc 0x00000056aa29 bp 0x7fffffffdc30 sp 0x7fffffffdc28
-[1m[0m[1m[34mWRITE of size 4 at 0x7ffff7f4c86c thread T0[1m[0m
-SCARINESS: 51 (4-byte-write-stack-buffer-overflow)
-    #0 0x56aa28 in ares_parse_a_reply /src/c-ares/ares_parse_a_reply.c
-    #1 0x56899e in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:12:3
-    #2 0x472121 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerLoop.cpp:553:15
-    #3 0x45d131 in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:292:6
-    #4 0x462afa in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:773:9
-    #5 0x48b7c2 in main /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerMain.cpp:19:10
-    #6 0x7ffff6ee582f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2082f)
-    #7 0x41df28 in _start (/out/ares_parse_reply_fuzzer+0x41df28)
+==20443==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffc0176470c at pc 0x00000056cf5e bp 0x7ffc01764270 sp 0x7ffc01764268
+WRITE of size 4 at 0x7ffc0176470c thread T0
+    #0 0x56cf5d in ares_parse_a_reply /src/c-ares/ares_parse_a_reply.c:160:35
+    #1 0x568c55 in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:12:3
+    #2 0x472221 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerLoop.cpp:553:15
+    #3 0x45d231 in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:292:6
+    #4 0x462bfa in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerDriver.cpp:773:9
+    #5 0x48b8c2 in main /src/llvm/projects/compiler-rt/lib/fuzzer/FuzzerMain.cpp:19:10
+    #6 0x7f6379b5682f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2082f)
+    #7 0x41e028 in _start (/out/ares_parse_reply_fuzzer+0x41e028)
 
-DEDUP_TOKEN: ares_parse_a_reply--LLVMFuzzerTestOneInput--fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long)
-[1m[32mAddress 0x7ffff7f4c86c is located in stack of thread T0 at offset 108 in frame[1m[0m
-[1m[0m    #0 0x56882f in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:7
+Address 0x7ffc0176470c is located in stack of thread T0 at offset 108 in frame
+    #0 0x56896f in LLVMFuzzerTestOneInput /src/c-ares/test/ares-test-fuzz.c:7
 
-DEDUP_TOKEN: LLVMFuzzerTestOneInput
   This frame has 10 object(s):
     [32, 40) 'host' (line 9)
-    [64, 104) 'info' (line 10)[1m[32m <== Memory access at offset 108 overflows this variable[1m[0m
+    [64, 104) 'info' (line 10) <== Memory access at offset 108 overflows this variable
     [144, 148) 'count' (line 11)
     [160, 260) 'info6' (line 16)
     [304, 308) 'addrv4' (line 22)
@@ -34,37 +31,37 @@ DEDUP_TOKEN: LLVMFuzzerTestOneInput
     [448, 456) 'naptr' (line 46)
 HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
       (longjmp and C++ exceptions *are* supported)
-SUMMARY: AddressSanitizer: stack-buffer-overflow /src/c-ares/ares_parse_a_reply.c in ares_parse_a_reply
+SUMMARY: AddressSanitizer: stack-buffer-overflow /src/c-ares/ares_parse_a_reply.c:160:35 in ares_parse_a_reply
 Shadow bytes around the buggy address:
-  0x10007efe18b0: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe18c0: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe18d0: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe18e0: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe18f0: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-=>0x10007efe1900: [1m[31mf1[1m[0m [1m[31mf1[1m[0m [1m[31mf1[1m[0m [1m[31mf1[1m[0m [1m[0m00[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m[[1m[31mf2[1m[0m][1m[31mf2[1m[0m [1m[31mf2[1m[0m
-  0x10007efe1910: [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[0m04[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m [1m[35mf8[1m[0m
-  0x10007efe1920: [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m
-  0x10007efe1930: [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[31mf2[1m[0m [1m[35mf8[1m[0m [1m[31mf3[1m[0m [1m[31mf3[1m[0m [1m[31mf3[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe1940: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
-  0x10007efe1950: [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m [1m[0m00[1m[0m
+  0x1000002e4890: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e48a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e48b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e48c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e48d0: 00 00 00 00 f1 f1 f1 f1 00 f2 f2 f2 00 00 00 00
+=>0x1000002e48e0: 00[f2]f2 f2 f2 f2 04 f2 f8 f8 f8 f8 f8 f8 f8 f8
+  0x1000002e48f0: f8 f8 f8 f8 f8 f2 f2 f2 f2 f2 f8 f2 f8 f2 f2 f2
+  0x1000002e4900: f8 f2 f2 f2 f8 f2 f2 f2 f8 f2 f2 f2 f8 f3 f3 f3
+  0x1000002e4910: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e4920: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x1000002e4930: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 Shadow byte legend (one shadow byte represents 8 application bytes):
-  Addressable:           [1m[0m00[1m[0m
-  Partially addressable: [1m[0m01[1m[0m [1m[0m02[1m[0m [1m[0m03[1m[0m [1m[0m04[1m[0m [1m[0m05[1m[0m [1m[0m06[1m[0m [1m[0m07[1m[0m 
-  Heap left redzone:       [1m[31mfa[1m[0m
-  Freed heap region:       [1m[35mfd[1m[0m
-  Stack left redzone:      [1m[31mf1[1m[0m
-  Stack mid redzone:       [1m[31mf2[1m[0m
-  Stack right redzone:     [1m[31mf3[1m[0m
-  Stack after return:      [1m[35mf5[1m[0m
-  Stack use after scope:   [1m[35mf8[1m[0m
-  Global redzone:          [1m[31mf9[1m[0m
-  Global init order:       [1m[36mf6[1m[0m
-  Poisoned by user:        [1m[34mf7[1m[0m
-  Container overflow:      [1m[34mfc[1m[0m
-  Array cookie:            [1m[31mac[1m[0m
-  Intra object redzone:    [1m[33mbb[1m[0m
-  ASan internal:           [1m[33mfe[1m[0m
-  Left alloca redzone:     [1m[34mca[1m[0m
-  Right alloca redzone:    [1m[34mcb[1m[0m
-  Shadow gap:              [1m[0mcc[1m[0m
-==7==ABORTING
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+  Shadow gap:              cc
+==20443==ABORTING

@@ -1,11 +1,8 @@
 ARVO ID: 42476049
 Image: n132/arvo:42476049-vul
 Fuzz target: ares_parse_reply_fuzzer
-SANITIZER: coverage
+SANITIZER: address
 debug flags: -g3 -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-inline
 CFLAGS: -O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -g3 -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-inline
 CXXFLAGS: -O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -stdlib=libc++ -g3 -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-inline
-coverage target exit: 0
-profraw files merged: 1
-llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false
-rendered hit-count column removed from committed text: yes
+ASan target exit: 134
