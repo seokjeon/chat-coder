@@ -1,40 +1,25 @@
 name: ARVO SQL analysis
 
 on:
-  workflow_dispatch:
-    inputs:
-      sql:
-        description: "Read-only SQL to run against the combined ARVO dataset"
-        required: true
-        type: string
   issues:
-    types: [edited]
+    types:
+      - edited
 
 permissions:
   contents: read
-  issues: read
 
 jobs:
   query:
-    if: github.event_name == 'workflow_dispatch' || (github.event.issue.number == 1 && github.event.issue.title == 'ARVO SQL runner')
+    if: ${{ github.event.issue.number == 1 }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Prepare SQL
         shell: bash
-        env:
-          DISPATCH_SQL: ${{ inputs.sql }}
-          ISSUE_SQL: ${{ github.event.issue.body }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            printf '%s
-' "$DISPATCH_SQL" > query.sql
-          else
-            printf '%s
-' "$ISSUE_SQL" > query.sql
-          fi
+          jq -r '.issue.body' "$GITHUB_EVENT_PATH" > query.sql
           echo "=== SQL ==="
           cat query.sql
 
