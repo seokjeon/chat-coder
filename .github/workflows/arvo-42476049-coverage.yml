@@ -89,59 +89,76 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p coverage-result
+          cat > coverage-run.sh <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          echo "=== toolchain ==="
+          command -v compile
+          command -v llvm-cov
+          command -v llvm-profdata
+          llvm-cov --version | head -n 1
+          echo "SANITIZER=$SANITIZER"
+          echo "FUZZING_ENGINE=${FUZZING_ENGINE:-}"
+          echo "OUT=${OUT:-/out}"
+          echo "SRC=${SRC:-/src}"
 
-          docker run --name arvo-coverage             -e SANITIZER=coverage             -e LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw             "$IMAGE"             bash -lc '
-              set -euo pipefail
-              echo "=== toolchain ==="
-              command -v arvo
-              command -v llvm-cov
-              command -v llvm-profdata
-              llvm-cov --version | head -n 1
-              echo "SANITIZER=$SANITIZER"
-              echo "FUZZING_ENGINE=${FUZZING_ENGINE:-}"
-              echo "OUT=${OUT:-/out}"
-              echo "SRC=${SRC:-/src}"
+          echo "=== rebuild ==="
+          SANITIZER=coverage compile
 
-              echo "=== rebuild ==="
-              SANITIZER=coverage arvo compile
+          echo "=== target ==="
+          ls -l "/out/$FUZZ_TARGET"
+          file "/out/$FUZZ_TARGET"
 
-              echo "=== target ==="
-              ls -l "/out/'"$FUZZ_TARGET"'"
-              file "/out/'"$FUZZ_TARGET"'"
+          echo "=== reproduce under coverage ==="
+          set +e
+          LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw "/out/$FUZZ_TARGET" /tmp/poc
+          reproduce_rc=$?
+          set -e
+          echo "coverage_target_exit=$reproduce_rc"
 
-              echo "=== reproduce under coverage ==="
-              set +e
-              LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw arvo
-              reproduce_rc=$?
-              set -e
-              echo "arvo_reproduce_exit=$reproduce_rc"
+          echo "=== raw profiles ==="
+          find /tmp /out -type f -name "*.profraw" -print
+          mapfile -t profiles < <(find /tmp /out -type f -name "*.profraw" -print)
+          if [ "${#profiles[@]}" -eq 0 ]; then
+            echo "No .profraw files were produced." >&2
+            exit 20
+          fi
 
-              echo "=== raw profiles ==="
-              find /tmp /out -type f -name "*.profraw" -print
-              mapfile -t profiles < <(find /tmp /out -type f -name "*.profraw" -print)
-              if [ "${#profiles[@]}" -eq 0 ]; then
-                echo "No .profraw files were produced." >&2
-                exit 20
-              fi
+          llvm-profdata merge -sparse "${profiles[@]}" -o /tmp/arvo.profdata
 
-              llvm-profdata merge -sparse "${profiles[@]}" -o /tmp/arvo.profdata
+          echo "=== llvm-cov show ==="
+          llvm-cov show "/out/$FUZZ_TARGET" \
+            -instr-profile=/tmp/arvo.profdata \
+            -show-line-counts=false \
+            -show-line-counts-or-regions=false \
+            -show-regions=false \
+            -show-instantiations=false \
+            -show-expansions=false \
+            -use-color=false \
+            > /tmp/llvm-cov-show.txt
 
-              echo "=== llvm-cov show ==="
-              llvm-cov show "/out/'"$FUZZ_TARGET"'"                 -instr-profile=/tmp/arvo.profdata                 -show-line-counts=false                 -show-line-counts-or-regions=false                 -show-regions=false                 -show-instantiations=false                 -show-expansions=false                 -use-color=false                 > /tmp/llvm-cov-show.txt
+          test -s /tmp/llvm-cov-show.txt
+          wc -l /tmp/llvm-cov-show.txt
+          sed -n '1,80p' /tmp/llvm-cov-show.txt
 
-              test -s /tmp/llvm-cov-show.txt
-              wc -l /tmp/llvm-cov-show.txt
-              sed -n "1,80p" /tmp/llvm-cov-show.txt
+          {
+            echo "ARVO ID: 42476049"
+            echo "Image: n132/arvo:42476049-vul"
+            echo "Fuzz target: $FUZZ_TARGET"
+            echo "SANITIZER: coverage"
+            echo "coverage target exit: $reproduce_rc"
+            echo "llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false"
+          } > /tmp/coverage-metadata.txt
+          SCRIPT
+          chmod +x coverage-run.sh
 
-              {
-                echo "ARVO ID: 42476049"
-                echo "Image: n132/arvo:42476049-vul"
-                echo "Fuzz target: '"$FUZZ_TARGET"'"
-                echo "SANITIZER: coverage"
-                echo "arvo reproduce exit: $reproduce_rc"
-                echo "llvm-cov options: -show-line-counts=false -show-line-counts-or-regions=false -show-regions=false -show-instantiations=false -show-expansions=false -use-color=false"
-              } > /tmp/coverage-metadata.txt
-            '
+          docker run --name arvo-coverage \
+            -e SANITIZER=coverage \
+            -e FUZZ_TARGET="$FUZZ_TARGET" \
+            -e LLVM_PROFILE_FILE=/tmp/arvo-%p.profraw \
+            -v "$PWD/coverage-run.sh:/tmp/coverage-run.sh:ro" \
+            "$IMAGE" \
+            bash /tmp/coverage-run.sh
 
           docker cp arvo-coverage:/tmp/llvm-cov-show.txt coverage-result/llvm-cov-show.txt
           docker cp arvo-coverage:/tmp/coverage-metadata.txt coverage-result/coverage-metadata.txt
